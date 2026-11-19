@@ -1,6 +1,6 @@
 import { LanguageMode, MasteringParams, MasteringPreset, TrackAnalysis } from '../types/studio';
 
-export const DEFAULT_TRACK_URL = '/assets/aistudio/______________2__Remix___1__28472cd6.mp3';
+export const DEFAULT_TRACK_URL = './assets/aistudio/______________2__Remix___1__28472cd6.mp3';
 export const DEFAULT_TRACK_FILENAME = 'රතු හැට්ටකාරි (Remix).mp3';
 
 export const FLAT_PARAMS: MasteringParams = {
