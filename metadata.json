@@ -1,0 +1,6 @@
+{
+  "name": "Swara Studio — Song Doctor & Mastering",
+  "description": "Audio mastering, EQ repair, and songwriting flaw analyzer for Sinhala and English tracks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
