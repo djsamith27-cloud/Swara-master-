@@ -18,6 +18,7 @@ import {
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { LyricsStudio } from './components/LyricsStudio';
 import { MasteringConsole } from './components/MasteringConsole';
+import { OfflineIndicator, PWAInstallButton } from './components/PWAInstallButton';
 import { formatTimecode, WaveformAndSpectrum } from './components/WaveformAndSpectrum';
 import {
   DEFAULT_TRACK_FILENAME,
@@ -775,6 +776,8 @@ export default function App() {
                   ? 'හැදූ WAV ගන්න'
                   : 'Export WAV'}
             </button>
+
+            <PWAInstallButton lang={lang} />
           </div>
         </section>
 
@@ -945,6 +948,7 @@ export default function App() {
           </section>
         )}
       </main>
+      <OfflineIndicator lang={lang} />
     </div>
   );
 }

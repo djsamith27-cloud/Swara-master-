@@ -1,0 +1,31 @@
+{
+  "id": "./",
+  "name": "Swara Studio — Song Doctor & Mastering",
+  "short_name": "Swara Studio",
+  "description": "Audio mastering, EQ repair, and songwriting flaw analyzer for Sinhala and English tracks.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#0B0F17",
+  "background_color": "#0B0F17",
+  "icons": [
+    {
+      "src": "./pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
