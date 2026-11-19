@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="si" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swara Studio — Song Doctor & Mastering</title>
+  <meta name="description" content="Browser-based audio mastering, EQ repair, and song flaw analyzer." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Sinhala:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      font-family: 'Plus Jakarta Sans', 'Noto Sans Sinhala', system-ui, sans-serif;
+      color-scheme: dark;
+    }
+    body { background: #0b0f17; color: #f1f5f9; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+    input[type='range'].studio-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type='range'].studio-slider::-webkit-slider-runnable-track {
+      height: 4px;
+      border-radius: 2px;
+      background: #1e293b;
+    }
+    input[type='range'].studio-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      margin-top: -5px;
+      border-radius: 3px;
+      background: #f59e0b;
+      border: 1px solid #fef3c7;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#0B0F17] text-slate-100 antialiased">
+  <input id="fileInput" type="file" accept="audio/*" class="hidden" />
+
+  <!-- Top Bar -->
+  <header class="border-b border-slate-800 bg-[#0B0F17]/95 sticky top-0 z-30">
+    <div class="max-w-[1320px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-6">
+      <span class="text-lg font-bold tracking-tight text-slate-100 whitespace-nowrap">Swara Studio</span>
+      <div class="flex items-center gap-3">
+        <button id="langBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:border-amber-500">
+          සිංහල / EN
+        </button>
+        <button id="uploadBtn" type="button" class="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 whitespace-nowrap">
+          ගීතයක් Upload කරන්න (MP3/WAV)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1320px] mx-auto px-4 sm:px-6 py-5 space-y-5">
+    <!-- Transport & A/B Bar -->
+    <section class="bg-[#111722] border border-slate-800 rounded-xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div class="min-w-0 space-y-1">
+        <h1 id="trackName" class="text-base sm:text-lg font-semibold text-slate-100 truncate">ගීතයක් තෝරන්න...</h1>
+        <p id="trackStats" class="text-xs font-mono text-slate-400">--:-- · -- kHz · Peak -- dBFS · RMS -- dBFS</p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button id="playBtn" type="button" disabled class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-white text-slate-950 disabled:opacity-40">
+          Play
+        </button>
+
+        <div class="flex items-center p-1 bg-[#0B0F17] border border-slate-800 rounded-lg">
+          <button id="btnOrig" type="button" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white">
+            A: මුල් ගීතය
+          </button>
+          <button id="btnFixed" type="button" class="px-3 py-1 rounded-md text-xs font-semibold bg-amber-500 text-slate-950">
+            B: Fixed Master
+          </button>
+        </div>
+
+        <button id="exportBtn" type="button" disabled class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40">
+          හැදූ WAV ගන්න
+        </button>
+      </div>
+    </section>
+
+    <!-- Upload Prompt Banner (shown until audio is loaded) -->
+    <section id="dropZone" class="bg-[#111722] border border-dashed border-slate-700 rounded-xl p-6 text-center space-y-2 cursor-pointer hover:border-amber-500 transition-colors">
+      <p id="dropTitle" class="text-sm font-medium text-slate-200">ඔබේ MP3 / WAV ගීතය මෙතනට දමන්න (හෝ Click කර තෝරන්න)</p>
+      <p class="text-xs text-slate-400">Browser එක ඇතුළේම අඩුපාඩු පරීක්ෂා කර EQ / Compressor යොදා WAV ලෙස download කළ හැක.</p>
+    </section>
+
+    <!-- Waveform & Live Spectrum -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="lg:col-span-8 bg-[#111722] border border-slate-800 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Waveform (Click කර අවශ්‍ය තැනට යන්න)</span>
+          <span id="timeDisplay" class="font-mono text-slate-200">0:00 / 0:00</span>
+        </div>
+        <canvas id="waveCanvas" width="800" height="112" class="w-full h-28 bg-[#0B0F17] border border-slate-800 rounded-lg cursor-pointer"></canvas>
+      </div>
+
+      <div class="lg:col-span-4 bg-[#111722] border border-slate-800 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span>Live Spectrum</span>
+          <span id="grDisplay" class="font-mono text-amber-400">GR: 0.0 dB</span>
+        </div>
+        <canvas id="specCanvas" width="360" height="112" class="w-full h-28 bg-[#0B0F17] border border-slate-800 rounded-lg"></canvas>
+      </div>
+    </section>
+
+    <!-- Presets -->
+    <section id="presetBar" class="bg-[#111722] border border-slate-800 rounded-xl p-4 flex flex-wrap items-center gap-2"></section>
+
+    <!-- EQ & Dynamics Controls -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="lg:col-span-7 bg-[#111722] border border-slate-800 rounded-xl p-5 space-y-4">
+        <h2 class="text-base font-semibold border-b border-slate-800 pb-2.5">Parametric Repair EQ</h2>
+        <div class="space-y-3">
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Sub-Tight High-Pass</span><span id="v_hpf" class="font-mono text-amber-400">34 Hz</span></div>
+            <input id="s_hpf" type="range" min="20" max="90" step="2" value="34" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>808 / Bass Warmth (90 Hz)</span><span id="v_low" class="font-mono text-amber-400">-1.0 dB</span></div>
+            <input id="s_low" type="range" min="-6" max="6" step="0.2" value="-1.0" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Mud Cut (250 Hz)</span><span id="v_mud" class="font-mono text-amber-400">-2.6 dB</span></div>
+            <input id="s_mud" type="range" min="-6" max="4" step="0.2" value="-2.6" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Vocal Clarity (3.2 kHz)</span><span id="v_pres" class="font-mono text-amber-400">+2.8 dB</span></div>
+            <input id="s_pres" type="range" min="-4" max="6" step="0.2" value="2.8" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>De-Esser / Hi-Hat (6.8 kHz)</span><span id="v_deess" class="font-mono text-amber-400">-2.4 dB</span></div>
+            <input id="s_deess" type="range" min="-6" max="3" step="0.2" value="-2.4" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Studio Air (11 kHz)</span><span id="v_air" class="font-mono text-amber-400">+1.8 dB</span></div>
+            <input id="s_air" type="range" min="-4" max="6" step="0.2" value="1.8" class="studio-slider" />
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5 bg-[#111722] border border-slate-800 rounded-xl p-5 space-y-4">
+        <h2 class="text-base font-semibold border-b border-slate-800 pb-2.5">Dynamics, Width &amp; Limiter</h2>
+        <div class="space-y-3">
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Compressor Threshold</span><span id="v_thresh" class="font-mono text-amber-400">-15 dB</span></div>
+            <input id="s_thresh" type="range" min="-30" max="0" step="1" value="-15" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Compression Ratio</span><span id="v_ratio" class="font-mono text-amber-400">2.8 : 1</span></div>
+            <input id="s_ratio" type="range" min="1" max="8" step="0.1" value="2.8" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Stereo Width (Mid-Side)</span><span id="v_width" class="font-mono text-amber-400">1.08 x</span></div>
+            <input id="s_width" type="range" min="0.6" max="1.45" step="0.02" value="1.08" class="studio-slider" />
+          </div>
+          <div>
+            <div class="flex justify-between text-xs mb-1"><span>Output Makeup Gain</span><span id="v_gain" class="font-mono text-amber-400">+1.5 dB</span></div>
+            <input id="s_gain" type="range" min="-6" max="6" step="0.2" value="1.5" class="studio-slider" />
+          </div>
+        </div>
+        <div class="bg-[#0B0F17] border border-slate-800 rounded-lg p-3 text-xs text-slate-400 flex justify-between">
+          <span>Safety Limiter Ceiling</span>
+          <span class="font-mono text-emerald-400">-0.6 dBFS</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- DSP Diagnostics -->
+    <section class="bg-[#111722] border border-slate-800 rounded-xl p-5 space-y-3">
+      <h2 class="text-base font-semibold border-b border-slate-800 pb-2.5">හඳුනාගත් Audio අඩුපාඩු (Browser DSP Audit)</h2>
+      <p id="diagSummary" class="text-sm text-slate-300">ගීතයක් upload කළ පසු සංඛ්‍යාත සහ ශබ්ද අඩුපාඩු මෙහි දිස්වේ.</p>
+      <div id="diagList" class="divide-y divide-slate-800"></div>
+    </section>
+  </main>
+
+  <script>
+    const PRESETS = [
+      { id: 'rec', name: 'Recommended Fix', p: { hpf: 34, low: -1.0, mud: -2.6, pres: 2.8, deess: -2.4, air: 1.8, thresh: -15, ratio: 2.8, width: 1.08, gain: 1.5 } },
+      { id: 'trap', name: 'Trap & Rap Punch', p: { hpf: 32, low: 1.2, mud: -3.0, pres: 2.2, deess: -1.8, air: 2.0, thresh: -16, ratio: 3.2, width: 1.12, gain: 1.8 } },
+      { id: 'vocal', name: 'Vocal Clarity', p: { hpf: 42, low: -1.5, mud: -3.2, pres: 3.6, deess: -2.8, air: 2.4, thresh: -14, ratio: 2.5, width: 0.96, gain: 1.6 } },
+      { id: 'flat', name: 'Flat (Reset)', p: { hpf: 20, low: 0, mud: 0, pres: 0, deess: 0, air: 0, thresh: -6, ratio: 1.5, width: 1.0, gain: 0 } },
+    ];
+
+    let params = { ...PRESETS[0].p };
+    let audioCtx = null;
+    let audioBuffer = null;
+    let peaks = [];
+    let isPlaying = false;
+    let isBypassed = false;
+    let startCtxTime = 0;
+    let pauseOffset = 0;
+    let playGen = 0;
+    let sourceNode = null;
+    let analyser = null;
+    let chain = null;
+    let dryGain = null;
+    let wetGain = null;
+    let lang = 'si';
+
+    const el = (id) => document.getElementById(id);
+    const fmtTime = (s) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+
+    function syncSliders() {
+      el('s_hpf').value = params.hpf; el('v_hpf').textContent = `${params.hpf} Hz`;
+      el('s_low').value = params.low; el('v_low').textContent = `${params.low >= 0 ? '+' : ''}${params.low.toFixed(1)} dB`;
+      el('s_mud').value = params.mud; el('v_mud').textContent = `${params.mud >= 0 ? '+' : ''}${params.mud.toFixed(1)} dB`;
+      el('s_pres').value = params.pres; el('v_pres').textContent = `${params.pres >= 0 ? '+' : ''}${params.pres.toFixed(1)} dB`;
+      el('s_deess').value = params.deess; el('v_deess').textContent = `${params.deess >= 0 ? '+' : ''}${params.deess.toFixed(1)} dB`;
+      el('s_air').value = params.air; el('v_air').textContent = `${params.air >= 0 ? '+' : ''}${params.air.toFixed(1)} dB`;
+      el('s_thresh').value = params.thresh; el('v_thresh').textContent = `${params.thresh} dB`;
+      el('s_ratio').value = params.ratio; el('v_ratio').textContent = `${params.ratio.toFixed(1)} : 1`;
+      el('s_width').value = params.width; el('v_width').textContent = `${params.width.toFixed(2)} x`;
+      el('s_gain').value = params.gain; el('v_gain').textContent = `${params.gain >= 0 ? '+' : ''}${params.gain.toFixed(1)} dB`;
+      if (chain) chain.update(params);
+    }
+
+    function buildChain(ctx, p, channels) {
+      const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass';
+      const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 90;
+      const mud = ctx.createBiquadFilter(); mud.type = 'peaking'; mud.frequency.value = 250; mud.Q.value = 1.4;
+      const pres = ctx.createBiquadFilter(); pres.type = 'peaking'; pres.frequency.value = 3200; pres.Q.value = 1.2;
+      const deess = ctx.createBiquadFilter(); deess.type = 'peaking'; deess.frequency.value = 6800; deess.Q.value = 2.2;
+      const air = ctx.createBiquadFilter(); air.type = 'highshelf'; air.frequency.value = 11000;
+      const comp = ctx.createDynamicsCompressor(); comp.knee.value = 6; comp.attack.value = 0.008; comp.release.value = 0.16;
+      const lim = ctx.createDynamicsCompressor(); lim.threshold.value = -0.6; lim.ratio.value = 20; lim.attack.value = 0.001; lim.release.value = 0.06;
+      const makeup = ctx.createGain();
+
+      hpf.connect(low); low.connect(mud); mud.connect(pres); pres.connect(deess); deess.connect(air); air.connect(comp);
+
+      let sideGain = null;
+      if (channels >= 2) {
+        const split = ctx.createChannelSplitter(2), merge = ctx.createChannelMerger(2);
+        const lm = ctx.createGain(), rm = ctx.createGain(), ls = ctx.createGain(), rs = ctx.createGain();
+        const mid = ctx.createGain(), inv = ctx.createGain();
+        sideGain = ctx.createGain();
+        lm.gain.value = 0.5; rm.gain.value = 0.5; ls.gain.value = 0.5; rs.gain.value = -0.5; inv.gain.value = -1;
+        comp.connect(split);
+        split.connect(lm, 0); split.connect(rm, 1); lm.connect(mid); rm.connect(mid);
+        split.connect(ls, 0); split.connect(rs, 1); ls.connect(sideGain); rs.connect(sideGain);
+        mid.connect(merge, 0, 0); mid.connect(merge, 0, 1);
+        sideGain.connect(merge, 0, 0); sideGain.connect(inv); inv.connect(merge, 0, 1);
+        merge.connect(makeup);
+      } else {
+        comp.connect(makeup);
+      }
+      makeup.connect(lim);
+
+      const update = (nx) => {
+        const t = ctx.currentTime;
+        hpf.frequency.setTargetAtTime(nx.hpf, t, 0.02);
+        low.gain.setTargetAtTime(nx.low, t, 0.02);
+        mud.gain.setTargetAtTime(nx.mud, t, 0.02);
+        pres.gain.setTargetAtTime(nx.pres, t, 0.02);
+        deess.gain.setTargetAtTime(nx.deess, t, 0.02);
+        air.gain.setTargetAtTime(nx.air, t, 0.02);
+        comp.threshold.setTargetAtTime(nx.thresh, t, 0.02);
+        comp.ratio.setTargetAtTime(nx.ratio, t, 0.02);
+        if (sideGain) sideGain.gain.setTargetAtTime(nx.width, t, 0.02);
+        makeup.gain.setTargetAtTime(Math.pow(10, nx.gain / 20), t, 0.02);
+      };
+      update(p);
+      return { input: hpf, output: lim, comp, update };
+    }
+
+    function measureBand(samples, sr, type, freq, q) {
+      const w0 = (2 * Math.PI * freq) / sr, cosW = Math.cos(w0), alpha = Math.sin(w0) / (2 * q);
+      const a0 = 1 + alpha, a1 = -2 * cosW, a2 = 1 - alpha;
+      const b0 = type === 'lowpass' ? (1 - cosW) / 2 : alpha;
+      const b1 = type === 'lowpass' ? 1 - cosW : 0;
+      const b2 = type === 'lowpass' ? (1 - cosW) / 2 : -alpha;
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0, sq = 0;
+      const n = Math.min(samples.length, sr * 60);
+      for (let i = 0; i < n; i++) {
+        const x0 = samples[i];
+        const y0 = (b0 / a0) * x0 + (b1 / a0) * x1 + (b2 / a0) * x2 - (a1 / a0) * y1 - (a2 / a0) * y2;
+        x2 = x1; x1 = x0; y2 = y1; y1 = y0; sq += y0 * y0;
+      }
+      const rms = Math.sqrt(sq / Math.max(1, n));
+      return rms > 1e-6 ? 20 * Math.log10(rms) : -96;
+    }
+
+    function runAudit(buf) {
+      const ch0 = buf.getChannelData(0);
+      let peak = 0, sq = 0;
+      for (let i = 0; i < ch0.length; i += 2) {
+        const a = Math.abs(ch0[i]);
+        if (a > peak) peak = a;
+        sq += ch0[i] * ch0[i];
+      }
+      const rmsDb = 20 * Math.log10(Math.max(1e-6, Math.sqrt(sq / (ch0.length / 2))));
+      const peakDb = 20 * Math.log10(Math.max(1e-6, peak));
+      el('trackStats').textContent = `${fmtTime(buf.duration)} · ${(buf.sampleRate / 1000).toFixed(1)} kHz · Peak ${peakDb.toFixed(1)} dBFS · RMS ${rmsDb.toFixed(1)} dBFS`;
+
+      const mudDb = measureBand(ch0, buf.sampleRate, 'bandpass', 250, 1.2);
+      const vocDb = measureBand(ch0, buf.sampleRate, 'bandpass', 3200, 1.0);
+      const harshDb = measureBand(ch0, buf.sampleRate, 'bandpass', 6800, 1.5);
+
+      const issues = [];
+      if (mudDb - vocDb > 4) issues.push({ title: '250Hz Low-Mid Mud ගතිය වැඩියි', detail: '808/Bass කලාපය Vocal හඬට බාධා කරයි. Mud Cut (-2.6 dB) නිර්දේශිතයි.' });
+      if (vocDb < rmsDb - 11) issues.push({ title: 'Vocal Presence (3.2kHz) අඩුයි', detail: 'ගායන හඬ සංගීතයට යට වී ඇත. 3.2kHz (+2.8 dB) ඉහළ දමන්න.' });
+      if (harshDb > vocDb - 3.5) issues.push({ title: '6.8kHz Hi-Hat / Sibilance තියුණුයි', detail: 'වැඩි ශබ්දයකදී කනට තියුණු ගතියක් දැනේ. De-Esser (-2.4 dB) යොදන්න.' });
+      if (peakDb > -1.0) issues.push({ title: 'Streaming Headroom අඩුයි (Clipping අවදානම)', detail: 'Spotify/YouTube සඳහා -0.6 dBFS Safety Limiter සක්‍රීය කර ඇත.' });
+
+      el('diagSummary').textContent = `DSP පරීක්ෂාව සම්පූර්ණයි — Peak ${peakDb.toFixed(1)} dBFS | RMS ${rmsDb.toFixed(1)} dBFS`;
+      el('diagList').innerHTML = issues.length
+        ? issues.map((x) => `<div class="py-3"><div class="text-sm font-semibold text-amber-300">${x.title}</div><div class="text-xs text-slate-400 mt-1">${x.detail}</div></div>`).join('')
+        : '<div class="py-3 text-sm text-emerald-400">ගීතයේ සංඛ්‍යාත සමබරතාවය හොඳ මට්ටමක ඇත.</div>';
+    }
+
+    function drawWave() {
+      const c = el('waveCanvas'), ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+      if (!peaks.length || !audioBuffer) return;
+      const cur = isPlaying && audioCtx ? audioCtx.currentTime - startCtxTime : pauseOffset;
+      const pct = Math.min(1, cur / audioBuffer.duration);
+      const bw = c.width / peaks.length;
+      peaks.forEach((amp, i) => {
+        const h = Math.max(4, amp * (c.height - 14));
+        ctx.fillStyle = i / peaks.length <= pct ? (isBypassed ? '#94a3b8' : '#f59e0b') : '#334155';
+        ctx.fillRect(i * bw + 1, (c.height - h) / 2, Math.max(1, bw - 2), h);
+      });
+      el('timeDisplay').textContent = `${fmtTime(cur)} / ${fmtTime(audioBuffer.duration)}`;
+    }
+
+    function drawLoop() {
+      drawWave();
+      const sc = el('specCanvas'), sctx = sc.getContext('2d');
+      sctx.clearRect(0, 0, sc.width, sc.height);
+      if (analyser && isPlaying) {
+        const bins = 40, data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        const bw = sc.width / bins;
+        for (let i = 0; i < bins; i++) {
+          const idx = Math.floor(Math.pow(i / bins, 1.8) * data.length * 0.7);
+          const h = Math.max(2, (data[idx] / 255) * (sc.height - 8));
+          sctx.fillStyle = isBypassed ? 'rgba(148,163,184,0.6)' : 'rgba(245,158,11,0.85)';
+          sctx.fillRect(i * bw + 1, sc.height - h, Math.max(2, bw - 2), h);
+        }
+        if (chain) el('grDisplay').textContent = `GR: ${(isBypassed ? 0 : chain.comp.reduction).toFixed(1)} dB`;
+      }
+      if (isPlaying) requestAnimationFrame(drawLoop);
+    }
+
+    function stopAudio() {
+      playGen++;
+      if (sourceNode) { try { sourceNode.onended = null; sourceNode.stop(); } catch {} sourceNode = null; }
+    }
+
+    function playAt(offset) {
+      if (!audioBuffer) return;
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      stopAudio();
+      const gen = ++playGen;
+      sourceNode = audioCtx.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048;
+      dryGain = audioCtx.createGain(); dryGain.gain.value = isBypassed ? 1 : 0;
+      wetGain = audioCtx.createGain(); wetGain.gain.value = isBypassed ? 0 : 1;
+      chain = buildChain(audioCtx, params, audioBuffer.numberOfChannels);
+      sourceNode.connect(dryGain); dryGain.connect(analyser);
+      sourceNode.connect(chain.input); chain.output.connect(wetGain); wetGain.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      sourceNode.onended = () => { if (playGen === gen) { isPlaying = false; pauseOffset = 0; el('playBtn').textContent = 'Play'; drawWave(); } };
+      startCtxTime = audioCtx.currentTime - offset;
+      pauseOffset = offset;
+      sourceNode.start(0, offset);
+      isPlaying = true;
+      el('playBtn').textContent = 'Pause';
+      requestAnimationFrame(drawLoop);
+    }
+
+    async function loadAudioArrayBuffer(ab, name) {
+      stopAudio(); isPlaying = false; pauseOffset = 0;
+      const tmp = new (window.AudioContext || window.webkitAudioContext)();
+      audioBuffer = await tmp.decodeAudioData(ab);
+      await tmp.close();
+      const ch0 = audioBuffer.getChannelData(0), bars = 140, step = Math.max(1, Math.floor(ch0.length / bars));
+      peaks = [];
+      for (let i = 0; i < bars; i++) {
+        let m = 0;
+        for (let j = i * step; j < Math.min(ch0.length, (i + 1) * step); j += 8) m = Math.max(m, Math.abs(ch0[j]));
+        peaks.push(m);
+      }
+      el('trackName').textContent = name;
+      el('dropZone').classList.add('hidden');
+      el('playBtn').disabled = false;
+      el('exportBtn').disabled = false;
+      runAudit(audioBuffer);
+      drawWave();
+    }
+
+    // Event bindings
+    el('uploadBtn').onclick = () => el('fileInput').click();
+    el('dropZone').onclick = () => el('fileInput').click();
+    el('fileInput').onchange = async (e) => {
+      const f = e.target.files?.[0];
+      if (f) await loadAudioArrayBuffer(await f.arrayBuffer(), f.name);
+    };
+    el('playBtn').onclick = () => {
+      if (isPlaying) {
+        pauseOffset = audioCtx.currentTime - startCtxTime;
+        stopAudio(); isPlaying = false; el('playBtn').textContent = 'Play';
+      } else playAt(pauseOffset);
+    };
+    el('btnOrig').onclick = () => {
+      isBypassed = true;
+      el('btnOrig').className = 'px-3 py-1 rounded-md text-xs font-semibold bg-slate-700 text-white';
+      el('btnFixed').className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400';
+      if (audioCtx && dryGain && wetGain) { dryGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.015); wetGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.015); }
+      drawWave();
+    };
+    el('btnFixed').onclick = () => {
+      isBypassed = false;
+      el('btnFixed').className = 'px-3 py-1 rounded-md text-xs font-semibold bg-amber-500 text-slate-950';
+      el('btnOrig').className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400';
+      if (audioCtx && dryGain && wetGain) { dryGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.015); wetGain.gain.setTargetAtTime(1, audioCtx.currentTime, 0.015); }
+      drawWave();
+    };
+    el('waveCanvas').onclick = (e) => {
+      if (!audioBuffer) return;
+      const r = e.target.getBoundingClientRect();
+      const sec = ((e.clientX - r.left) / r.width) * audioBuffer.duration;
+      pauseOffset = sec;
+      if (isPlaying) playAt(sec); else drawWave();
+    };
+
+    el('exportBtn').onclick = async () => {
+      if (!audioBuffer) return;
+      el('exportBtn').textContent = 'Rendering...';
+      const off = new OfflineAudioContext(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+      const src = off.createBufferSource(); src.buffer = audioBuffer;
+      if (isBypassed) src.connect(off.destination);
+      else { const c = buildChain(off, params, audioBuffer.numberOfChannels); src.connect(c.input); c.output.connect(off.destination); }
+      src.start(0);
+      const rendered = await off.startRendering();
+      const nc = rendered.numberOfChannels, len = rendered.length, buf = new ArrayBuffer(44 + len * nc * 2), v = new DataView(buf);
+      const ws = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      ws(0, 'RIFF'); v.setUint32(4, 36 + len * nc * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, nc, true);
+      v.setUint32(24, rendered.sampleRate, true); v.setUint32(28, rendered.sampleRate * nc * 2, true);
+      v.setUint16(32, nc * 2, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, len * nc * 2, true);
+      let pos = 44;
+      for (let i = 0; i < len; i++) for (let ch = 0; ch < nc; ch++) {
+        const s = Math.max(-1, Math.min(1, rendered.getChannelData(ch)[i]));
+        v.setInt16(pos, s < 0 ? s * 0x8000 : s * 0x7fff, true); pos += 2;
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+      a.download = 'swara_studio_fixed.wav'; a.click();
+      el('exportBtn').textContent = 'හැදූ WAV ගන්න';
+    };
+
+    [['s_hpf', 'hpf'], ['s_low', 'low'], ['s_mud', 'mud'], ['s_pres', 'pres'], ['s_deess', 'deess'], ['s_air', 'air'], ['s_thresh', 'thresh'], ['s_ratio', 'ratio'], ['s_width', 'width'], ['s_gain', 'gain']]
+      .forEach(([id, key]) => el(id).addEventListener('input', (e) => { params[key] = parseFloat(e.target.value); syncSliders(); }));
+
+    el('presetBar').innerHTML = PRESETS.map((pr) => `<button data-id="${pr.id}" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 hover:border-amber-500 text-slate-200">${pr.name}</button>`).join('');
+    el('presetBar').querySelectorAll('button').forEach((btn) => btn.onclick = () => {
+      const found = PRESETS.find((x) => x.id === btn.dataset.id);
+      if (found) { params = { ...found.p }; syncSliders(); }
+    });
+
+    el('langBtn').onclick = () => {
+      lang = lang === 'si' ? 'en' : 'si';
+      el('uploadBtn').textContent = lang === 'si' ? 'ගීතයක් Upload කරන්න (MP3/WAV)' : 'Upload Song (MP3/WAV)';
+      el('exportBtn').textContent = lang === 'si' ? 'හැදූ WAV ගන්න' : 'Export Fixed WAV';
+      el('dropTitle').textContent = lang === 'si' ? 'ඔබේ MP3 / WAV ගීතය මෙතනට දමන්න (හෝ Click කර තෝරන්න)' : 'Drop or Click to Upload MP3 / WAV Song';
+    };
+
+    syncSliders();
+  </script>
+</body>
+</html>
